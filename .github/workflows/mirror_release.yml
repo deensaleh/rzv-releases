@@ -6,7 +6,7 @@ on:
       version:
         description: 'Version tag to mirror (e.g. v3.9.3)'
         required: true
-        default: 'latest'
+        default: 'v3.9.3'
   repository_dispatch:
     types: [sdk-release]
 
@@ -21,39 +21,60 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Determine version
+        id: version
         run: |
-          VERSION="${{ github.event.inputs.version || github.event.client_payload.version || 'latest' }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.event.client_payload.version }}"
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Mirroring version: $VERSION"
 
-      - name: Download all binaries from private SDK repo
+      - name: Download binaries from private SDK repo
         env:
           GH_TOKEN: ${{ secrets.SDK_ACCESS_TOKEN }}
         run: |
           mkdir -p binaries
-          FILES=(
-            "rsbis-gateway-linux-arm64"
-            "rsbis-gateway-linux-x86_64"
-            "rsbis-gateway-macos-arm64"
-            "rsbis-gateway-macos-x86_64"
-            "rsbis-gateway-windows-x64.exe"
-            "SHA256SUMS.txt"
-          )
-          for f in "${FILES[@]}"; do
-            echo "Downloading $f..."
-            gh release download ${{ env.VERSION }} \
+          VERSION="${{ env.VERSION }}"
+          echo "Downloading from deensaleh/rsbis-sdk release $VERSION"
+
+          # List what's available
+          gh release view "$VERSION" --repo deensaleh/rsbis-sdk 2>&1 || echo "Could not view release"
+
+          # Download each binary
+          for f in \
+            "rsbis-gateway-linux-arm64" \
+            "rsbis-gateway-linux-x86_64" \
+            "rsbis-gateway-macos-arm64" \
+            "rsbis-gateway-macos-x86_64" \
+            "rsbis-gateway-windows-x64.exe" \
+            "SHA256SUMS.txt"; do
+            gh release download "$VERSION" \
               --repo deensaleh/rsbis-sdk \
               --pattern "$f" \
-              --dir binaries/ \
-              --skip-errors 2>/dev/null && echo "  OK $f" || echo "  SKIP $f"
+              --dir binaries/ 2>/dev/null \
+              && echo "OK: $f" || echo "SKIP: $f"
           done
-          # APK uses version in filename
-          gh release download ${{ env.VERSION }} \
+
+          # APK — pattern match
+          gh release download "$VERSION" \
             --repo deensaleh/rsbis-sdk \
             --pattern "rootzerovault-*.apk" \
-            --dir binaries/ \
-            --skip-errors 2>/dev/null || true
-          ls -lh binaries/
+            --dir binaries/ 2>/dev/null || echo "SKIP: APK"
+
+          echo "--- binaries ---"
+          ls -lh binaries/ || echo "binaries/ is empty"
+
+      - name: Fail if no binaries downloaded
+        run: |
+          COUNT=$(ls binaries/ 2>/dev/null | wc -l)
+          echo "Downloaded $COUNT files"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "ERROR: No binaries downloaded. Check SDK_ACCESS_TOKEN secret."
+            exit 1
+          fi
 
       - name: Create public release
         env:
@@ -65,4 +86,5 @@ jobs:
           git push origin ":refs/tags/$VERSION" 2>/dev/null || true
           gh release create "$VERSION" binaries/* \
             --title "Root Zero Vault $VERSION" \
-            --notes "Constitutional AI Governance Infrastructure. See rootzerovault.com for install instructions."
+            --notes "Constitutional AI Governance Infrastructure. rootzerovault.com"
+          echo "Public release created: $VERSION"
