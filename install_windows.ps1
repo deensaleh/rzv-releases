@@ -64,9 +64,17 @@ $GwDest  = "$InstallDir\rsbis-service.exe"
 $RzvDest = "$InstallDir\rzv.exe"
 
 try {
+    # Download gateway binary
     Write-Gold "Downloading $BinName..."
     Invoke-WebRequest -Uri "$BaseUrl/$BinName" -OutFile $GwDest -UseBasicParsing
-    Copy-Item $GwDest $RzvDest -Force
+    Write-Ok "Downloaded: rsbis-service.exe"
+
+    # Download rzv CLI binary separately
+    $RzvBinName = "rzv-windows-x64.exe"
+    Write-Gold "Downloading $RzvBinName..."
+    Invoke-WebRequest -Uri "$BaseUrl/$RzvBinName" -OutFile $RzvDest -UseBasicParsing
+    Write-Ok "Downloaded: rzv.exe"
+
     Write-Ok "Downloaded to $InstallDir"
 } catch {
     Write-Fail "Download failed: $_`nBuild from source: cargo build -p rsbis-service --release --target x86_64-pc-windows-msvc"
@@ -91,11 +99,17 @@ if ($LASTEXITCODE -ne 0) { Write-Gold "Init returned $LASTEXITCODE — may alrea
 # ── Start gateway ─────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Gold "Starting gateway on port $Port..."
-$GwArgs = @("--home", $RzvHome, "--listen", "127.0.0.1:$Port")
-Start-Process -FilePath $GwDest -ArgumentList $GwArgs `
-    -RedirectStandardOutput "$LogDir\gateway.log" `
-    -RedirectStandardError  "$LogDir\gateway-err.log" `
-    -WindowStyle Hidden -PassThru | Out-Null
+# Use rzv up with explicit bin path
+$UpArgs = @("up", "--home", $RzvHome, "--bin", $GwDest)
+& "$RzvDest" @UpArgs 2>$null
+if ($LASTEXITCODE -ne 0) {
+    # Fallback: start gateway directly
+    $env:RZV_HOME = $RzvHome
+    Start-Process -FilePath $GwDest -ArgumentList @("up", "--home", $RzvHome) `
+        -RedirectStandardOutput "$LogDir\gateway.log" `
+        -RedirectStandardError  "$LogDir\gateway-err.log" `
+        -WindowStyle Hidden -PassThru | Out-Null
+}
 
 Start-Sleep 2
 try {
