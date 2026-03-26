@@ -29,50 +29,32 @@ jobs:
             VERSION="${{ github.event.client_payload.version }}"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Mirroring version: $VERSION"
 
-      - name: Download binaries from private SDK repo
+      - name: Download ALL binaries from private SDK repo
         env:
           GH_TOKEN: ${{ secrets.SDK_ACCESS_TOKEN }}
         run: |
           mkdir -p binaries
           VERSION="${{ env.VERSION }}"
-          echo "Downloading from deensaleh/rsbis-sdk release $VERSION"
+          echo "Downloading all assets from deensaleh/rsbis-sdk release $VERSION"
 
-          # List what's available
-          gh release view "$VERSION" --repo deensaleh/rsbis-sdk 2>&1 || echo "Could not view release"
+          # List available assets
+          gh release view "$VERSION" --repo deensaleh/rsbis-sdk || echo "Could not view release"
 
-          # Download each binary
-          for f in \
-            "rsbis-gateway-linux-arm64" \
-            "rsbis-gateway-linux-x86_64" \
-            "rsbis-gateway-macos-arm64" \
-            "rsbis-gateway-macos-x86_64" \
-            "rsbis-gateway-windows-x64.exe" \
-            "SHA256SUMS.txt"; do
-            gh release download "$VERSION" \
-              --repo deensaleh/rsbis-sdk \
-              --pattern "$f" \
-              --dir binaries/ 2>/dev/null \
-              && echo "OK: $f" || echo "SKIP: $f"
-          done
-
-          # APK — pattern match
+          # Download everything
           gh release download "$VERSION" \
             --repo deensaleh/rsbis-sdk \
-            --pattern "rootzerovault-*.apk" \
-            --dir binaries/ 2>/dev/null || echo "SKIP: APK"
+            --dir binaries/ \
+            --pattern "*" || true
 
-          echo "--- binaries ---"
+          echo "--- Downloaded files ---"
           ls -lh binaries/ || echo "binaries/ is empty"
 
-      - name: Fail if no binaries downloaded
-        run: |
           COUNT=$(ls binaries/ 2>/dev/null | wc -l)
-          echo "Downloaded $COUNT files"
+          echo "Total: $COUNT files"
           if [ "$COUNT" -eq 0 ]; then
-            echo "ERROR: No binaries downloaded. Check SDK_ACCESS_TOKEN secret."
+            echo "ERROR: No files downloaded. Check SDK_ACCESS_TOKEN secret."
             exit 1
           fi
 
