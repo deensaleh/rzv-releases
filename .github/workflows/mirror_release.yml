@@ -1,6 +1,5 @@
 name: Mirror Release from SDK
 
-# Triggered manually or by repository_dispatch from rsbis-sdk
 on:
   workflow_dispatch:
     inputs:
@@ -38,7 +37,6 @@ jobs:
             "rsbis-gateway-macos-arm64"
             "rsbis-gateway-macos-x86_64"
             "rsbis-gateway-windows-x64.exe"
-            "rootzerovault-${{ env.VERSION }}.apk"
             "SHA256SUMS.txt"
           )
           for f in "${FILES[@]}"; do
@@ -47,8 +45,14 @@ jobs:
               --repo deensaleh/rsbis-sdk \
               --pattern "$f" \
               --dir binaries/ \
-              --skip-errors 2>/dev/null && echo "  ✓ $f" || echo "  ✗ $f (skipped)"
+              --skip-errors 2>/dev/null && echo "  OK $f" || echo "  SKIP $f"
           done
+          # APK uses version in filename
+          gh release download ${{ env.VERSION }} \
+            --repo deensaleh/rsbis-sdk \
+            --pattern "rootzerovault-*.apk" \
+            --dir binaries/ \
+            --skip-errors 2>/dev/null || true
           ls -lh binaries/
 
       - name: Create public release
@@ -56,28 +60,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ env.VERSION }}"
-          
-          # Delete existing release if present
           gh release delete "$VERSION" --yes 2>/dev/null || true
           git tag -d "$VERSION" 2>/dev/null || true
           git push origin ":refs/tags/$VERSION" 2>/dev/null || true
-          
-          # Create new public release
           gh release create "$VERSION" binaries/* \
             --title "Root Zero Vault $VERSION" \
-            --notes "Constitutional AI Governance Infrastructure
-
-## Install
-
-**macOS / Linux / Android:**
-\`\`\`bash
-curl -sSf https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install.sh | bash
-\`\`\`
-
-**Windows:**
-\`\`\`powershell
-irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 | iex
-\`\`\`
-
-## Genesis
-\`cvid:blake3:1544ff7dd978d911083bd60a7a4e6ba9647996bfdefb62aa8a045ccb63158867\`"
+            --notes "Constitutional AI Governance Infrastructure. See rootzerovault.com for install instructions."
