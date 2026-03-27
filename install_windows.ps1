@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Root Zero Vault — Windows Installer (PowerShell)
-#  rootzerovault.com · github.com/deensaleh/rzv-releases
+# ===============================================================================
+#  Root Zero Vault - Windows Installer (PowerShell)
+#  rootzerovault.com . github.com/deensaleh/rzv-releases
 #
 #  Run (as Administrator):
 #    powershell -ExecutionPolicy Bypass -File install_windows.ps1
@@ -9,8 +9,10 @@
 #    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 | iex
 #
 #  One-liner UPDATE (PowerShell):
-#    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 -OutFile "$env:TEMPzv.ps1"; & "$env:TEMPzv.ps1" -Update
-# ═══════════════════════════════════════════════════════════════════════════════
+#    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 -OutFile "$env:TEMP
+zv.ps1"; & "$env:TEMP
+zv.ps1" -Update
+# ===============================================================================
 
 param(
     [switch]$Uninstall,
@@ -30,14 +32,14 @@ function Write-Ok   { param($msg) Write-Host " [OK] $msg" -ForegroundColor Green
 function Write-Fail { param($msg) Write-Host "[ERR] $msg" -ForegroundColor Red; exit 1 }
 function Write-Dim  { param($msg) Write-Host "      $msg" -ForegroundColor DarkGray }
 
-# ── Banner ────────────────────────────────────────────────────────────────────
+# -- Banner --------------------------------------------------------------------
 Write-Host ""
 Write-Host "  ROOT ZERO VAULT  Constitutional AI Governance" -ForegroundColor Yellow
-Write-Dim  "  rootzerovault.com · github.com/$Repo"
+Write-Dim  "  rootzerovault.com . github.com/$Repo"
 Write-Dim  "  Genesis: cvid:blake3:1544ff7d..."
 Write-Host ""
 
-# ── Uninstall ─────────────────────────────────────────────────────────────────
+# -- Uninstall -----------------------------------------------------------------
 if ($Uninstall) {
     Write-Gold "Uninstalling..."
     Stop-Process -Name "rsbis-service" -Force -ErrorAction SilentlyContinue
@@ -46,7 +48,7 @@ if ($Uninstall) {
     exit 0
 }
 
-# ── Update ─────────────────────────────────────────────────────────────────────
+# -- Update ---------------------------------------------------------------------
 if ($Update -or $env:RZV_UPDATE -eq "1") {
     Write-Gold "Updating Root Zero Vault to latest..."
 
@@ -99,7 +101,7 @@ zv-update.exe"
     exit 0
 }
 
-# ── Download binaries ─────────────────────────────────────────────────────────
+# -- Download binaries ---------------------------------------------------------
 Write-Gold "Detecting platform..."
 $Arch = if ([System.Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
 Write-Ok "Platform: windows-$Arch"
@@ -137,7 +139,7 @@ try {
     Write-Fail "Download failed: $_`nBuild from source: cargo build -p rsbis-service --release --target x86_64-pc-windows-msvc"
 }
 
-# ── Add to PATH ───────────────────────────────────────────────────────────────
+# -- Add to PATH ---------------------------------------------------------------
 $CurrentPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
 if ($CurrentPath -notlike "*$InstallDir*") {
     [System.Environment]::SetEnvironmentVariable("PATH", "$InstallDir;$CurrentPath", "User")
@@ -145,15 +147,15 @@ if ($CurrentPath -notlike "*$InstallDir*") {
 }
 $env:PATH = "$InstallDir;$env:PATH"
 
-# ── Init ──────────────────────────────────────────────────────────────────────
+# -- Init ----------------------------------------------------------------------
 Write-Host ""
 Write-Gold "Initializing Root Zero Vault..."
 $InitArgs = @("init", "--home", $RzvHome, "--listen", "127.0.0.1:$Port")
 if ($Namespace) { $InitArgs += @("--namespace", $Namespace) }
 & "$RzvDest" @InitArgs 2>$null
-if ($LASTEXITCODE -ne 0) { Write-Gold "Init returned $LASTEXITCODE — may already be initialized" }
+if ($LASTEXITCODE -ne 0) { Write-Gold "Init returned $LASTEXITCODE - may already be initialized" }
 
-# ── Start gateway ─────────────────────────────────────────────────────────────
+# -- Start gateway -------------------------------------------------------------
 Write-Host ""
 Write-Gold "Starting gateway on port $Port..."
 # Use rzv up with explicit bin path
@@ -173,14 +175,14 @@ try {
     $health = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health" -UseBasicParsing -TimeoutSec 3
     Write-Ok "Gateway healthy"
 } catch {
-    Write-Gold "Gateway starting — check logs at $LogDir\gateway.log"
+    Write-Gold "Gateway starting - check logs at $LogDir\gateway.log"
 }
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# -- Summary -------------------------------------------------------------------
 Write-Host ""
-Write-Host "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+Write-Host "  ??????????????????????????????????????????????????" -ForegroundColor DarkGray
 Write-Host "  Root Zero Vault is ready" -ForegroundColor Yellow
-Write-Host "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+Write-Host "  ??????????????????????????????????????????????????" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Gateway  ->  http://127.0.0.1:$Port" -ForegroundColor Yellow
 Write-Host "  Health   ->  http://127.0.0.1:$Port/health" -ForegroundColor Yellow
