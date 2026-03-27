@@ -7,6 +7,9 @@
 #
 #  One-liner install (PowerShell):
 #    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 | iex
+#
+#  One-liner UPDATE (PowerShell):
+#    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 -OutFile "$env:TEMPzv.ps1"; & "$env:TEMPzv.ps1" -Update
 # ═══════════════════════════════════════════════════════════════════════════════
 
 param(
@@ -44,7 +47,7 @@ if ($Uninstall) {
 }
 
 # ── Update ─────────────────────────────────────────────────────────────────────
-if ($Update) {
+if ($Update -or $env:RZV_UPDATE -eq "1") {
     Write-Gold "Updating Root Zero Vault to latest..."
 
     # Stop gateway if running
@@ -57,8 +60,10 @@ if ($Update) {
     }
 
     # Download new binary
-    $TmpGw  = "$env:TEMPsbis-service-update.exe"
-    $TmpRzv = "$env:TEMPzv-update.exe"
+    $TmpGw  = "$env:TEMP
+sbis-service-update.exe"
+    $TmpRzv = "$env:TEMP
+zv-update.exe"
     $BaseUrl = "https://github.com/$Repo/releases/latest/download"
 
     Write-Gold "Downloading rsbis-service..."
