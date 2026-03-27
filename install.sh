@@ -146,7 +146,7 @@ download_binary() {
     fi
 }
 
-RZV_BIN="rsbis-gateway-${PLATFORM}"
+RZV_BIN="rzv-${PLATFORM}"
 GW_BIN="rsbis-gateway-${PLATFORM}"
 
 if [[ ! -f "$INSTALL_DIR/rzv" ]]; then
@@ -162,6 +162,14 @@ else
 fi
 
 export PATH="$INSTALL_DIR:$PATH"
+
+# ── macOS Gatekeeper notice ───────────────────────────────────────────────────
+if [[ "$OS" == "darwin" ]]; then
+    info "macOS: removing quarantine flag from binaries..."
+    xattr -dr com.apple.quarantine "$INSTALL_DIR/rsbis-service" 2>/dev/null || true
+    xattr -dr com.apple.quarantine "$INSTALL_DIR/rzv" 2>/dev/null || true
+    success "Gatekeeper quarantine removed"
+fi
 
 # ── Add to PATH permanently ───────────────────────────────────────────────────
 if [[ "$INSTALL_DIR" != "/usr/local/bin" ]] && ! $IS_TERMUX; then

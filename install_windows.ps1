@@ -11,6 +11,7 @@
 
 param(
     [switch]$Uninstall,
+    [switch]$Update,
     [string]$Namespace = "",
     [int]$Port = 8443,
     [string]$Version = "latest"
@@ -39,6 +40,57 @@ if ($Uninstall) {
     Stop-Process -Name "rsbis-service" -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Ok "Uninstalled. Vault data preserved in $RzvHome"
+    exit 0
+}
+
+# ── Update ─────────────────────────────────────────────────────────────────────
+if ($Update) {
+    Write-Gold "Updating Root Zero Vault to latest..."
+
+    # Stop gateway if running
+    $proc = Get-Process "rsbis-service" -ErrorAction SilentlyContinue
+    if ($proc) {
+        Write-Gold "Stopping gateway..."
+        $proc | Stop-Process -Force
+        Start-Sleep 2
+        Write-Ok "Gateway stopped"
+    }
+
+    # Download new binary
+    $TmpGw  = "$env:TEMPsbis-service-update.exe"
+    $TmpRzv = "$env:TEMPzv-update.exe"
+    $BaseUrl = "https://github.com/$Repo/releases/latest/download"
+
+    Write-Gold "Downloading rsbis-service..."
+    try {
+        Invoke-WebRequest -Uri "$BaseUrl/rsbis-gateway-windows-x64.exe" -OutFile $TmpGw -UseBasicParsing
+        Copy-Item $TmpGw $GwDest -Force
+        Write-Ok "rsbis-service updated"
+    } catch {
+        Write-Fail "Download failed: $_"
+    }
+
+    Write-Gold "Downloading rzv CLI..."
+    try {
+        Invoke-WebRequest -Uri "$BaseUrl/rzv-windows-x64.exe" -OutFile $TmpRzv -UseBasicParsing
+        Copy-Item $TmpRzv $RzvDest -Force
+        Write-Ok "rzv updated"
+    } catch {
+        Write-Gold "rzv CLI download failed (non-fatal)"
+    }
+
+    # Restart gateway
+    Write-Gold "Restarting gateway..."
+    $env:RSBIS_CONFIG = "$RzvHome\config.yaml"
+    Start-Process -FilePath $GwDest -ArgumentList @("up", "--home", $RzvHome) `
+        -RedirectStandardOutput "$RzvHome\logs\gateway.log" `
+        -RedirectStandardError  "$RzvHome\logs\gateway.log" `
+        -NoNewWindow -PassThru | Out-Null
+    Start-Sleep 2
+
+    Write-Ok "Update complete"
+    Write-Gold "Console: http://localhost:$Port/console/"
+    exit 0
     exit 0
 }
 
