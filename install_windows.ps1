@@ -1,18 +1,19 @@
-# ===============================================================================
+# ==============================================================================
 #  Root Zero Vault - Windows Installer (PowerShell)
-#  rootzerovault.com . github.com/deensaleh/rzv-releases
+#  rootzerovault.com / github.com/deensaleh/rzv-releases
 #
-#  Run (as Administrator):
-#    powershell -ExecutionPolicy Bypass -File install_windows.ps1
-#
-#  One-liner install (PowerShell):
+#  One-liner install:
 #    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 | iex
 #
-#  One-liner UPDATE (PowerShell):
-#    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 -OutFile "$env:TEMP
-zv.ps1"; & "$env:TEMP
-zv.ps1" -Update
-# ===============================================================================
+#  One-liner update:
+#    irm https://raw.githubusercontent.com/deensaleh/rzv-releases/main/install_windows.ps1 -OutFile "$env:TEMP\rzv.ps1"; & "$env:TEMP\rzv.ps1" -Update
+#
+#  What this does:
+#    1. Downloads rzv CLI + rsbis-service gateway
+#    2. Runs rzv init (generates keys, writes config)
+#    3. Starts the gateway
+#    4. Prints the console URL
+# ==============================================================================
 
 param(
     [switch]$Uninstall,
@@ -26,17 +27,17 @@ $Repo       = "deensaleh/rzv-releases"
 $InstallDir = "$env:LOCALAPPDATA\RootZeroVault"
 $RzvHome    = "$env:USERPROFILE\.rzv"
 $LogDir     = "$RzvHome\logs"
+$GwDest     = "$InstallDir\rsbis-service.exe"
+$RzvDest    = "$InstallDir\rzv.exe"
 
 function Write-Gold { param($msg) Write-Host "[RZV] $msg" -ForegroundColor Yellow }
 function Write-Ok   { param($msg) Write-Host " [OK] $msg" -ForegroundColor Green }
 function Write-Fail { param($msg) Write-Host "[ERR] $msg" -ForegroundColor Red; exit 1 }
 function Write-Dim  { param($msg) Write-Host "      $msg" -ForegroundColor DarkGray }
 
-# -- Banner --------------------------------------------------------------------
 Write-Host ""
-Write-Host "  ROOT ZERO VAULT  Constitutional AI Governance" -ForegroundColor Yellow
-Write-Dim  "  rootzerovault.com . github.com/$Repo"
-Write-Dim  "  Genesis: cvid:blake3:1544ff7d..."
+Write-Host "  Root Zero Vault" -ForegroundColor Yellow
+Write-Host "  rootzerovault.com" -ForegroundColor DarkGray
 Write-Host ""
 
 # -- Uninstall -----------------------------------------------------------------
@@ -48,7 +49,7 @@ if ($Uninstall) {
     exit 0
 }
 
-# -- Update ---------------------------------------------------------------------
+# -- Update --------------------------------------------------------------------
 if ($Update -or $env:RZV_UPDATE -eq "1") {
     Write-Gold "Updating Root Zero Vault to latest..."
 
@@ -61,20 +62,22 @@ if ($Update -or $env:RZV_UPDATE -eq "1") {
         Write-Ok "Gateway stopped"
     }
 
-    # Download new binary
-    $TmpGw  = "$env:TEMP
-sbis-service-update.exe"
-    $TmpRzv = "$env:TEMP
-zv-update.exe"
-    $BaseUrl = "https://github.com/$Repo/releases/latest/download"
+    $TmpGw  = [System.IO.Path]::Combine($env:TEMP, "rsbis-service-update.exe")
+    $TmpRzv = [System.IO.Path]::Combine($env:TEMP, "rzv-update.exe")
 
-    Write-Gold "Downloading rsbis-service..."
+    if ($Version -eq "latest") {
+        $BaseUrl = "https://github.com/$Repo/releases/latest/download"
+    } else {
+        $BaseUrl = "https://github.com/$Repo/releases/download/$Version"
+    }
+
+    Write-Gold "Downloading gateway..."
     try {
         Invoke-WebRequest -Uri "$BaseUrl/rsbis-gateway-windows-x64.exe" -OutFile $TmpGw -UseBasicParsing
         Copy-Item $TmpGw $GwDest -Force
         Write-Ok "rsbis-service updated"
     } catch {
-        Write-Fail "Download failed: $_"
+        Write-Fail "Gateway download failed: $_"
     }
 
     Write-Gold "Downloading rzv CLI..."
@@ -87,28 +90,25 @@ zv-update.exe"
     }
 
     # Restart gateway
-    Write-Gold "Restarting gateway..."
-    $env:RSBIS_CONFIG = "$RzvHome\config.yaml"
-    Start-Process -FilePath $GwDest -ArgumentList @("up", "--home", $RzvHome) `
-        -RedirectStandardOutput "$RzvHome\logs\gateway.log" `
-        -RedirectStandardError  "$RzvHome\logs\gateway.log" `
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    $env:RSBIS_CONFIG = [System.IO.Path]::Combine($RzvHome, "config.yaml")
+    Start-Process -FilePath $GwDest `
+        -ArgumentList @("up", "--home", $RzvHome) `
+        -RedirectStandardOutput ([System.IO.Path]::Combine($LogDir, "gateway.log")) `
         -NoNewWindow -PassThru | Out-Null
     Start-Sleep 2
 
     Write-Ok "Update complete"
     Write-Gold "Console: http://localhost:$Port/console/"
     exit 0
-    exit 0
 }
 
-# -- Download binaries ---------------------------------------------------------
-Write-Gold "Detecting platform..."
-$Arch = if ([System.Environment]::Is64BitOperatingSystem) { "x86_64" } else { "x86" }
-Write-Ok "Platform: windows-$Arch"
-
+# -- Install -------------------------------------------------------------------
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-New-Item -ItemType Directory -Force -Path $RzvHome | Out-Null
-New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+New-Item -ItemType Directory -Force -Path $RzvHome    | Out-Null
+New-Item -ItemType Directory -Force -Path $LogDir     | Out-Null
+
+Write-Gold "Install directory: $InstallDir"
 
 if ($Version -eq "latest") {
     $BaseUrl = "https://github.com/$Repo/releases/latest/download"
@@ -116,78 +116,71 @@ if ($Version -eq "latest") {
     $BaseUrl = "https://github.com/$Repo/releases/download/$Version"
 }
 
-Write-Gold "Downloading Root Zero Vault binaries..."
-
-$BinName = "rsbis-gateway-windows-x64.exe"
-$GwDest  = "$InstallDir\rsbis-service.exe"
-$RzvDest = "$InstallDir\rzv.exe"
-
+# Download binaries
+Write-Gold "Downloading gateway binary..."
 try {
-    # Download gateway binary
-    Write-Gold "Downloading $BinName..."
-    Invoke-WebRequest -Uri "$BaseUrl/$BinName" -OutFile $GwDest -UseBasicParsing
+    Invoke-WebRequest -Uri "$BaseUrl/rsbis-gateway-windows-x64.exe" -OutFile $GwDest -UseBasicParsing
     Write-Ok "Downloaded: rsbis-service.exe"
-
-    # Download rzv CLI binary separately
-    $RzvBinName = "rzv-windows-x64.exe"
-    Write-Gold "Downloading $RzvBinName..."
-    Invoke-WebRequest -Uri "$BaseUrl/$RzvBinName" -OutFile $RzvDest -UseBasicParsing
-    Write-Ok "Downloaded: rzv.exe"
-
-    Write-Ok "Downloaded to $InstallDir"
 } catch {
-    Write-Fail "Download failed: $_`nBuild from source: cargo build -p rsbis-service --release --target x86_64-pc-windows-msvc"
+    Write-Fail "Download failed: $_`nBuild from source: cargo build -p rsbis-service --release"
 }
 
-# -- Add to PATH ---------------------------------------------------------------
+Write-Gold "Downloading rzv CLI..."
+try {
+    Invoke-WebRequest -Uri "$BaseUrl/rzv-windows-x64.exe" -OutFile $RzvDest -UseBasicParsing
+    Write-Ok "Downloaded: rzv.exe"
+} catch {
+    Write-Gold "rzv CLI download failed (non-fatal)"
+}
+
+# Add to PATH
 $CurrentPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
 if ($CurrentPath -notlike "*$InstallDir*") {
     [System.Environment]::SetEnvironmentVariable("PATH", "$InstallDir;$CurrentPath", "User")
-    Write-Ok "Added $InstallDir to PATH"
+    Write-Ok "Added to PATH"
 }
 $env:PATH = "$InstallDir;$env:PATH"
 
 # -- Init ----------------------------------------------------------------------
 Write-Host ""
 Write-Gold "Initializing Root Zero Vault..."
-$InitArgs = @("init", "--home", $RzvHome, "--listen", "127.0.0.1:$Port")
+$InitArgs = @("init", "--home", $RzvHome, "--listen", "0.0.0.0:$Port")
 if ($Namespace) { $InitArgs += @("--namespace", $Namespace) }
 & "$RzvDest" @InitArgs 2>$null
 if ($LASTEXITCODE -ne 0) { Write-Gold "Init returned $LASTEXITCODE - may already be initialized" }
 
 # -- Start gateway -------------------------------------------------------------
 Write-Host ""
-Write-Gold "Starting gateway on port $Port..."
-# Use rzv up with explicit bin path
-$UpArgs = @("up", "--home", $RzvHome, "--bin", $GwDest)
-& "$RzvDest" @UpArgs 2>$null
-if ($LASTEXITCODE -ne 0) {
-    # Fallback: start gateway directly
-    $env:RZV_HOME = $RzvHome
-    Start-Process -FilePath $GwDest -ArgumentList @("up", "--home", $RzvHome) `
-        -RedirectStandardOutput "$LogDir\gateway.log" `
-        -RedirectStandardError  "$LogDir\gateway-err.log" `
-        -WindowStyle Hidden -PassThru | Out-Null
+Write-Gold "Starting gateway..."
+$env:RSBIS_CONFIG = [System.IO.Path]::Combine($RzvHome, "config.yaml")
+Start-Process -FilePath $GwDest `
+    -ArgumentList @("up", "--home", $RzvHome) `
+    -RedirectStandardOutput ([System.IO.Path]::Combine($LogDir, "gateway.log")) `
+    -NoNewWindow -PassThru | Out-Null
+Start-Sleep 3
+
+# -- Health check --------------------------------------------------------------
+$healthy = $false
+for ($i = 1; $i -le 10; $i++) {
+    try {
+        $r = Invoke-WebRequest -Uri "http://localhost:$Port/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        if ($r.StatusCode -eq 200) { $healthy = $true; break }
+    } catch {}
+    Start-Sleep 1
 }
 
-Start-Sleep 2
-try {
-    $health = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/health" -UseBasicParsing -TimeoutSec 3
-    Write-Ok "Gateway healthy"
-} catch {
-    Write-Gold "Gateway starting - check logs at $LogDir\gateway.log"
+Write-Host ""
+Write-Host "  ================================================" -ForegroundColor Yellow
+if ($healthy) {
+    Write-Ok "Root Zero Vault is running"
+} else {
+    Write-Gold "Gateway starting (check logs if issues)"
 }
-
-# -- Summary -------------------------------------------------------------------
 Write-Host ""
-Write-Host "  ??????????????????????????????????????????????????" -ForegroundColor DarkGray
-Write-Host "  Root Zero Vault is ready" -ForegroundColor Yellow
-Write-Host "  ??????????????????????????????????????????????????" -ForegroundColor DarkGray
+Write-Dim "  Home:    $RzvHome"
+Write-Dim "  Console: http://localhost:$Port/console/"
+Write-Dim "  Logs:    $LogDir\gateway.log"
 Write-Host ""
-Write-Host "  Gateway  ->  http://127.0.0.1:$Port" -ForegroundColor Yellow
-Write-Host "  Health   ->  http://127.0.0.1:$Port/health" -ForegroundColor Yellow
-Write-Host ""
-Write-Dim  "  Backup these files:"
-Write-Dim  "    $RzvHome\store.key"
-Write-Dim  "    $RzvHome\custodian.key"
+Write-Gold "  Next: open http://localhost:$Port/console/ in your browser"
+Write-Host "  ================================================" -ForegroundColor Yellow
 Write-Host ""
