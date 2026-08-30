@@ -43,4 +43,4 @@ Sealed March 14, 2026. Every legitimate Root Zero Vault identity traces to this 
 
 ## License
 
-MIT OR Apache-2.0
+MIT
